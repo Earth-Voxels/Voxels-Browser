@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="UTF-8">
+<title>Voxels Browser</title>
+
+<style>
+
+body{
+margin:0;
+font-family:Arial;
+overflow:hidden;
+}
+
+/* TABS BAR */
+
+#tabs{
+display:flex;
+background:#111;
+padding:5px;
+gap:5px;
+}
+
+.tab{
+background:#333;
+color:white;
+padding:6px 12px;
+border-radius:6px;
+cursor:pointer;
+display:flex;
+align-items:center;
+gap:6px;
+}
+
+.tab.active{
+background:#666;
+}
+
+.close{
+color:red;
+cursor:pointer;
+}
+
+/* added favicon + title styles */
+
+.favicon{
+width:16px;
+height:16px;
+}
+
+.title{
+max-width:120px;
+overflow:hidden;
+white-space:nowrap;
+text-overflow:ellipsis;
+}
+
+/* ADD TAB */
+
+#addTab{
+background:#444;
+color:white;
+padding:6px 12px;
+border-radius:6px;
+cursor:pointer;
+}
+
+/* NAVBAR */
+
+#topbar{
+background:#222;
+padding:10px;
+display:flex;
+gap:6px;
+align-items:center;
+}
+
+#url{
+flex:1;
+padding:8px;
+font-size:16px;
+border-radius:6px;
+border:none;
+}
+
+.navbtn{
+padding:8px 10px;
+border:none;
+background:#444;
+color:white;
+cursor:pointer;
+border-radius:6px;
+}
+
+/* lock icon */
+
+#lockIcon{
+width:16px;
+filter:invert(1);
+}
+
+/* WEBVIEWS */
+
+#views webview{
+width:100%;
+height:calc(100vh - 95px);
+display:none;
+}
+
+#views webview.active{
+display:flex;
+}
+
+/* HOMEPAGE */
+
+#homepage{
+position:absolute;
+top:0;
+left:0;
+width:100%;
+height:100vh;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+background:linear-gradient(270deg,#2a7b9b,#57c785,#eddd53);
+background-size:600% 600%;
+animation:gradientMove 10s ease infinite;
+}
+
+@keyframes gradientMove{
+0%{background-position:0% 50%;}
+50%{background-position:100% 50%;}
+100%{background-position:0% 50%;}
+}
+
+.gradient-text{
+background:linear-gradient(to right,#f0ec06,#7beffe);
+-webkit-background-clip:text;
+-webkit-text-fill-color:transparent;
+font-size:72px;
+font-weight:bold;
+margin-bottom:40px;
+}
+
+#homeSearch{
+width:400px;
+padding:14px;
+font-size:18px;
+border:none;
+border-radius:8px;
+}
+
+.typing {
+-webkit-background-clip: text;
+background-clip: text;
+-webkit-text-fill-color: transparent;
+display: inline-block;
+font-family: 'Consolas', 'Courier New', monospace;
+font-size: 72px;
+font-weight: bold;
+}
+
+.typing::after {
+content: "|";
+margin-left: 4px;
+animation: blink 1s infinite;
+-webkit-text-fill-color: var(--text-color);
+}
+
+@keyframes blink {
+0%,50%,100% {opacity:1;}
+25%,75% {opacity:0;}
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- TABS -->
+
+<div id="tabs">
+<div id="addTab">+</div>
+</div>
+
+<!-- NAVBAR -->
+
+<div id="topbar">
+
+<button class="navbtn" onclick="goBack()">
+<img src="icons/back.svg" width="16">
+</button>
+
+<button class="navbtn" onclick="goForward()">
+<img src="icons/forward.svg" width="16">
+</button>
+
+<button class="navbtn" onclick="goHome()">
+<img src="icons/home.svg" width="16">
+</button>
+
+<img id="lockIcon" src="icons/unlock.svg">
+
+<input id="url" placeholder="Search Google or type a URL">
+
+<button class="navbtn" onclick="go()">Go</button>
+
+</div>
+
+<!-- HOMEPAGE -->
+
+<div id="homepage">
+
+<h1 class="typing"
+data-words='[{"text":"Voxels Browser","c1":"#00c6ff", "c2":"#f9d423"}]'>
+</h1>
+
+<input id="homeSearch" placeholder="Search Google">
+
+</div>
+
+<div id="views"></div>
+
+<script>
+
+let tabCount=0
+let activeTab=null
+
+function createTab(){
+
+tabCount++
+
+let tab=document.createElement("div")
+tab.className="tab"
+
+/* changed tab content (favicon + title) */
+
+tab.innerHTML=`
+<img class="favicon">
+<span class="title">New Tab</span>
+<span class="close">✖</span>
+`
+
+let view=document.createElement("webview")
+view.src=""
+view.dataset.tab=tabCount
+
+view.addEventListener("did-navigate",()=>{
+let url=view.getURL()
+
+document.getElementById("url").value=url
+
+if(url.startsWith("https")){
+document.getElementById("lockIcon").src="icons/lock.svg"
+}else{
+document.getElementById("lockIcon").src="icons/unlock.svg"
+}
+})
+
+view.addEventListener("did-navigate-in-page",()=>{
+document.getElementById("url").value=view.getURL()
+})
+
+/* favicon + title updates */
+
+view.addEventListener("page-title-updated",(e)=>{
+tab.querySelector(".title").textContent=e.title
+})
+
+view.addEventListener("page-favicon-updated",(e)=>{
+if(e.favicons && e.favicons.length>0){
+tab.querySelector(".favicon").src=e.favicons[0]
+}
+})
+
+document.getElementById("views").appendChild(view)
+
+tab.onclick=function(){
+switchTab(tab,view)
+}
+
+tab.querySelector(".close").onclick=function(e){
+e.stopPropagation()
+tab.remove()
+view.remove()
+}
+
+document.getElementById("tabs").insertBefore(tab,document.getElementById("addTab"))
+
+switchTab(tab,view)
+
+}
+
+function switchTab(tab,view){
+
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"))
+document.querySelectorAll("webview").forEach(v=>v.classList.remove("active"))
+
+tab.classList.add("active")
+view.classList.add("active")
+
+activeTab=view
+
+}
+
+document.getElementById("addTab").onclick=createTab
+
+createTab()
+
+function go(){
+
+let input=document.getElementById("url").value
+
+document.getElementById("homepage").style.display="none"
+
+if(input.startsWith("http")){
+activeTab.src=input
+}
+else{
+activeTab.src="https://www.google.com/search?q="+encodeURIComponent(input)
+}
+
+}
+
+/* ENTER SEARCH */
+
+document.getElementById("homeSearch").addEventListener("keypress",function(e){
+
+if(e.key==="Enter"){
+
+document.getElementById("homepage").style.display="none"
+
+activeTab.src="https://www.google.com/search?q="+encodeURIComponent(this.value)
+
+}
+
+})
+
+/* NAVIGATION */
+
+function goBack(){
+if(activeTab) activeTab.goBack()
+}
+
+function goForward(){
+if(activeTab) activeTab.goForward()
+}
+
+function goHome(){
+document.getElementById("homepage").style.display="flex"
+if(activeTab) activeTab.src=""
+}
+
+/* keyboard shortcuts */
+
+document.addEventListener("keydown",(e)=>{
+
+if(e.ctrlKey && e.key==="t"){
+e.preventDefault()
+createTab()
+}
+
+if(e.ctrlKey && e.key==="w"){
+e.preventDefault()
+let tab=document.querySelector(".tab.active")
+if(tab) tab.querySelector(".close").click()
+}
+
+})
+
+document.addEventListener("DOMContentLoaded", () => {
+
+class TypeWriter {
+
+constructor(el) {
+this.el = el;
+this.words = JSON.parse(el.getAttribute("data-words"));
+this.index = 0;
+this.charIndex = 0;
+this.isDeleting = false;
+this.type();
+}
+
+type() {
+
+const wordObj = this.words[this.index];
+const fullText = wordObj.text;
+
+this.el.style.background = `linear-gradient(45deg, ${wordObj.c1}, ${wordObj.c2})`;
+this.el.style.webkitBackgroundClip = "text";
+
+this.charIndex += this.isDeleting ? -1 : 1;
+
+this.el.textContent = fullText.substring(0, this.charIndex);
+
+let speed = this.isDeleting ? 40 : 70;
+
+if (!this.isDeleting && this.charIndex === fullText.length) {
+speed = 1500; this.isDeleting = true;
+}
+else if (this.isDeleting && this.charIndex === 0) {
+this.isDeleting = false;
+this.index = (this.index + 1) % this.words.length;
+speed = 500;
+}
+
+setTimeout(() => this.type(), speed);
+
+}
+
+}
+
+document.querySelectorAll(".typing").forEach(el => new TypeWriter(el));
+
+});
+
+document.getElementById("url").addEventListener("keypress", function(e){
+if(e.key === "Enter"){
+go();
+}
+});
+
+</script>
+
+</body>
+</html>
